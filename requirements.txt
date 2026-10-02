@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+google-generativeai
+google-cloud-firestore
+google-cloud-bigquery
+pandas
+scikit-learn
+xgboost
+joblib

@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.env
+venv/
+.DS_Store
+
+# Trained models and raw data -- large binary files, don't commit
+bfsi/models/*.joblib
+bfsi/models/*.json
+bfsi/data/paysim.csv
+bfsi/data/vehicle_loan.csv
+manufacturing/models/*.joblib
+manufacturing/models/*.json
+manufacturing/data/*.csv
