@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Voice-First Fraud & Risk Assistant</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">AI BUILDER CUP HACKATHON PROTOTYPE (BFSI)</div>
+      <h1>Voice-First Fraud & Risk Assistant</h1>
+      <p>One shared five-stage pipeline for transaction fraud and loan applicant risk.</p>
+    </div>
+    <div class="status-pill"><span class="dot"></span> Demo mode</div>
+  </header>
+  <main class="shell">
+    <section class="hero-grid">
+      <div class="assistant-card">
+        <div class="card-head">
+          <div><div class="section-kicker">ASSISTANT</div><h2>What should I assess?</h2></div>
+          <button class="mic" id="micBtn" title="Speak a question">◉</button>
+        </div>
+        <div class="mode-switch">
+          <button class="mode active" data-domain="transaction">Transaction</button>
+          <button class="mode" data-domain="loan">Loan application</button>
+        </div>
+        <div class="question-box">
+          <input id="question" placeholder='Try: "Why was this flagged?"'>
+          <button id="askBtn">Ask</button>
+        </div>
+        <div id="voiceStatus" class="muted">Select a sample below, then run the pipeline.</div>
+      </div>
+      <div class="metrics">
+        <div class="metric"><span>Pipeline</span><strong>5 stages</strong><small>shared architecture</small></div>
+        <div class="metric"><span>Models</span><strong>2</strong><small>fraud + loan risk</small></div>
+        <div class="metric"><span>Records</span><strong id="recordCount">12</strong><small>live sample</small></div>
+      </div>
+    </section>
+    <section class="content-grid">
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="section-kicker">STAGE 1 · DATA INGESTION</div><h2>Records</h2></div>
+          <button class="ghost" id="refreshBtn">Refresh</button>
+        </div>
+        <div id="recordList" class="record-list"></div>
+      </div>
+      <div class="panel result-panel">
+        <div class="panel-head">
+          <div><div class="section-kicker">STAGES 2 → 5</div><h2>Assessment</h2></div>
+          <div id="decisionBadge" class="decision neutral">WAITING</div>
+        </div>
+        <div id="emptyState" class="empty-state">
+          <div class="pulse">◎</div><h3>Nothing assessed yet</h3>
+          <p>Select a record to run scoring, reasoning, decision and persistence.</p>
+        </div>
+        <div id="resultState" class="hidden">
+          <div class="score-row">
+            <div><span class="muted">Risk score</span><div id="scoreValue" class="score">0%</div></div>
+            <div class="reason-code"><span class="muted">Reason code</span><strong id="reasonCode">—</strong></div>
+          </div>
+          <div class="explanation">
+            <div class="explanation-label">PLAIN-LANGUAGE EXPLANATION</div>
+            <p id="explanationText">—</p>
+          </div>
+          <div class="action-row">
+            <button class="primary" id="runAgainBtn">Run again</button>
+            <button class="ghost" id="speakBtn">Read aloud</button>
+          </div>
+          <div class="pipeline-strip">
+            <div class="stage done"><b>01</b><span>Ingest</span></div>
+            <div class="stage done"><b>02</b><span>Score</span></div>
+            <div class="stage done"><b>03</b><span>Explain</span></div>
+            <div class="stage done"><b>04</b><span>Decide</span></div>
+            <div class="stage done"><b>05</b><span>Store</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="panel history-panel">
+      <div class="panel-head">
+        <div><div class="section-kicker">STAGE 5 · STATE + DISPLAY</div><h2>Decision history</h2></div>
+        <span class="muted">Persisted in PostgreSQL</span>
+      </div>
+      <div id="history" class="history-list"></div>
+    </section>
+  </main>
+  <footer>Prototype only. Scores are heuristic demo logic and are not suitable for real credit or fraud decisions.</footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>
