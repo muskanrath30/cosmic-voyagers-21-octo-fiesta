@@ -1,0 +1,28 @@
+{
+    "model": "RandomForestClassifier",
+    "dataset": "AI4I 2020 Predictive Maintenance",
+    "rows": 10000,
+    "features": [
+        "Air temperature",
+        "Process temperature",
+        "Rotational speed",
+        "Torque",
+        "Tool wear",
+        "Type"
+    ],
+    "accuracy": 0.98,
+    "precision": 0.9117647058823529,
+    "recall": 0.45588235294117646,
+    "f1_score": 0.6078431372549019,
+    "roc_auc": 0.9635816283034954,
+    "confusion_matrix": [
+        [
+            1929,
+            3
+        ],
+        [
+            37,
+            31
+        ]
+    ]
+}

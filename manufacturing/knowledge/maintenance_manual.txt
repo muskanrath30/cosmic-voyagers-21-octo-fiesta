@@ -1,0 +1,101 @@
+MANUFACTURING PREDICTIVE MAINTENANCE KNOWLEDGE BASE
+
+GENERAL PRINCIPLES
+
+Machine-learning failure probability is a statistical signal and does not by itself prove that a machine has failed.
+
+Predictive-maintenance alerts should be treated as decision-support information for qualified maintenance personnel.
+
+Physical equipment should not be automatically stopped solely because an ML model produces a high-risk prediction.
+
+HIGH TOOL WEAR
+
+Tool wear represents accumulated tool usage.
+
+High tool wear can increase cutting forces and may contribute to tool degradation or tool failure.
+
+When high tool wear is detected:
+- Inspect the cutting tool condition.
+- Check whether the tool has reached its approved service interval.
+- Inspect for abnormal wear or damage.
+- Follow the approved tool inspection or replacement procedure.
+
+HIGH TORQUE
+
+Elevated torque can indicate increased cutting resistance, increased mechanical loading, tooling degradation, or abnormal operating conditions.
+
+When high torque is detected:
+- Inspect tooling and mechanical load conditions.
+- Check for abnormal resistance.
+- Review recent machine operating conditions.
+- Follow approved maintenance procedures.
+
+HIGH PROCESS TEMPERATURE
+
+Elevated process temperature may indicate increased thermal stress or abnormal operating conditions.
+
+When high process temperature is detected:
+- Inspect cooling conditions.
+- Check process operating parameters.
+- Review recent temperature trends.
+- Follow approved thermal inspection procedures.
+
+HIGH AIR TEMPERATURE
+
+Elevated air temperature can contribute to increased machine thermal conditions.
+
+When high air temperature is detected:
+- Check ambient operating conditions.
+- Verify ventilation and cooling.
+- Review temperature trends.
+- Follow approved environmental operating procedures.
+
+LOW ROTATIONAL SPEED
+
+Unexpectedly low rotational speed may occur when the machine experiences increased mechanical resistance or abnormal operating conditions.
+
+When low rotational speed occurs together with high torque:
+- Prioritize inspection of mechanical loading.
+- Inspect tooling and spindle conditions.
+- Review operating parameters.
+
+HIGH MECHANICAL LOAD
+
+The combination of low rotational speed and high torque can indicate increased mechanical resistance or loading.
+
+When high mechanical load is detected:
+- Inspect tooling.
+- Inspect spindle and mechanical components.
+- Review recent machine operating conditions.
+- Escalate to qualified maintenance personnel when required.
+
+MULTIPLE WARNING CONDITIONS
+
+Multiple simultaneous sensor warnings should receive higher maintenance priority than an isolated warning.
+
+However, sensor warnings alone do not prove that equipment failure has occurred.
+
+ML AND SENSOR EVIDENCE
+
+The ML model provides an estimated probability of machine failure.
+
+Sensor reason codes provide interpretable evidence about operating conditions.
+
+The two signals should be considered together.
+
+A low ML probability with multiple sensor warnings should trigger investigation rather than being treated as proof of failure.
+
+A high ML probability with few visible sensor warnings should also be investigated because the model may identify nonlinear relationships that are not represented by simple threshold rules.
+
+MAINTENANCE DECISION PRINCIPLES
+
+LOW RISK:
+Continue monitoring and collect additional operating data.
+
+MEDIUM RISK:
+Schedule a maintenance inspection and review relevant sensor trends.
+
+HIGH RISK:
+Prioritize an urgent maintenance inspection by qualified personnel.
+
+The system should recommend investigation and maintenance actions. It should not automatically shut down physical equipment based only on model predictions.
