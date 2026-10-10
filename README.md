@@ -1,8 +1,5 @@
-# Cosmic Voyagers — BFSI: Voice-First Fraud & Risk Assistant
-
-AI Builder Cup 2026 submission. Combines two BFSI sub-use-cases --
-transaction fraud detection and loan default risk -- into one
-voice-interactive assistant with a live web UI.
+# Cosmic Voyagers —
+AI Builder Cup 2026 submission. 
 
 ## Repo structure
 
@@ -31,7 +28,7 @@ cosmic-voyagers/
 │       ├── inspect_loan_columns.py   run FIRST on a new loan CSV
 │       ├── train_fraud_model.py
 │       └── train_loan_model.py
-├── manufacturing/        <- teammate's domain (not yet built)
+├── manufacturing/        <- Manufacturing
 ├── main.py               <- Cloud Run entrypoint (FastAPI) -- serves the UI
 │                             at "/" and all API routes under "/api/*"
 ├── Dockerfile
