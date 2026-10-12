@@ -30,7 +30,7 @@ from preprocessing import (
 ROOT = Path(__file__).resolve().parent
 
 DATA_FILE = ROOT / "data" / "ai4i2020.csv"
-MODEL_DIR = ROOT / "model"
+MODEL_DIR = ROOT / "models"
 
 MODEL_FILE = MODEL_DIR / "manufacturing_ai4i_model.joblib"
 METRICS_FILE = MODEL_DIR / "metrics.json"

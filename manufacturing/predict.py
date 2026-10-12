@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parent
 
 MODEL_FILE = (
     ROOT
-    / "model"
+    / "models"
     / "manufacturing_ai4i_model.joblib"
 )
 
