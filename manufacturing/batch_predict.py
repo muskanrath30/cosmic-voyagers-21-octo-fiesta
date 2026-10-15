@@ -1,169 +1,65 @@
+"""
+Score every sample record (all assets) and write data/predictions.csv.
+
+    python -m manufacturing.batch_predict            # with Gemini
+    python -m manufacturing.batch_predict --no-llm   # fast, deterministic
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
 from pathlib import Path
+
+if __package__ in (None, ""):  # allow `python batch_predict.py`
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 
-from predict import predict_machine
+from manufacturing import config, data_ingestion
+from manufacturing.predict import predict_machine
+
+OUTPUT_FILE = config.DATA_DIR / "predictions.csv"
 
 
-ROOT = Path(__file__).resolve().parent
+def main() -> int:
 
-INPUT_FILE = ROOT / "data" / "machine_data.csv"
-OUTPUT_FILE = ROOT / "data" / "predictions.csv"
-
-
-def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--no-llm", action="store_true")
+    args = ap.parse_args()
 
     print("=" * 80)
     print("MANUFACTURING BATCH PREDICTION")
     print("=" * 80)
 
-    # ---------------------------------------------------------
-    # 1. Load machine data
-    # ---------------------------------------------------------
+    records = data_ingestion.list_all_records()
+    print(f"\nRecords loaded: {len(records)}")
 
-    print("\n[1/4] Loading machine data...")
+    rows = []
+    for record in records:
+        result = predict_machine(record, use_llm=not args.no_llm)
+        rows.append({
+            "id": result["machine_id"],
+            "asset": result["asset"],
+            "failure_probability": result["failure_probability"],
+            "ml_risk": result["ml_risk"],
+            "sensor_risk": result["sensor_risk"],
+            "overall_risk": result["overall_risk"],
+            "reason_codes": "|".join(result["reason_codes"]),
+            "reasoning_source": result["reasoning_source"],
+            "data_source": result["data_source"],
+            "degraded": result["degraded"],
+        })
 
-    dataframe = pd.read_csv(
-        INPUT_FILE
-    )
+    out = pd.DataFrame(rows)
+    out.to_csv(OUTPUT_FILE, index=False)
 
-    print(
-        f"Machines loaded: {len(dataframe)}"
-    )
-
-    # ---------------------------------------------------------
-    # 2. Predict every machine
-    # ---------------------------------------------------------
-
-    print("\n[2/4] Running predictions...")
-
-    results = []
-
-    for _, row in dataframe.iterrows():
-
-        record = {
-            "machine_id": row["machine_id"],
-            "Type": row["Type"],
-            "Air temperature": float(
-                row["Air temperature"]
-            ),
-            "Process temperature": float(
-                row["Process temperature"]
-            ),
-            "Rotational speed": float(
-                row["Rotational speed"]
-            ),
-            "Torque": float(
-                row["Torque"]
-            ),
-            "Tool wear": float(
-                row["Tool wear"]
-            ),
-        }
-
-        result = predict_machine(
-            record
-        )
-
-        results.append(result)
-
-    # ---------------------------------------------------------
-    # 3. Prepare report
-    # ---------------------------------------------------------
-
-    print(
-        "\n[3/4] Creating prediction report..."
-    )
-
-    results_dataframe = pd.DataFrame(
-        results
-    )
-
-    results_dataframe[
-        "reason_codes"
-    ] = results_dataframe[
-        "reason_codes"
-    ].apply(
-        lambda reasons: ", ".join(reasons)
-    )
-
-    # Sort by overall risk first,
-    # then failure probability.
-    risk_order = {
-        "HIGH": 0,
-        "MEDIUM": 1,
-        "LOW": 2,
-    }
-
-    results_dataframe[
-        "risk_order"
-    ] = results_dataframe[
-        "overall_risk"
-    ].map(
-        risk_order
-    )
-
-    results_dataframe = (
-        results_dataframe
-        .sort_values(
-            by=[
-                "risk_order",
-                "failure_probability",
-            ],
-            ascending=[
-                True,
-                False,
-            ],
-        )
-        .drop(
-            columns=["risk_order"]
-        )
-    )
-
-    # ---------------------------------------------------------
-    # 4. Save report
-    # ---------------------------------------------------------
-
-    print(
-        "\n[4/4] Saving prediction report..."
-    )
-
-    results_dataframe.to_csv(
-        OUTPUT_FILE,
-        index=False,
-    )
-
-    print()
-    print(
-        f"Prediction report saved to:"
-    )
-    print(OUTPUT_FILE)
-
-    # ---------------------------------------------------------
-    # Display report
-    # ---------------------------------------------------------
-
-    print()
-    print("=" * 100)
-    print("MACHINE RISK REPORT")
-    print("=" * 100)
-
-    for _, row in results_dataframe.iterrows():
-
-        print(
-            f"{row['machine_id']:>5} | "
-            f"ML: {row['failure_probability']:.2%} "
-            f"({row['ml_risk']:<6}) | "
-            f"Sensor: {row['sensor_risk']:<6} "
-            f"({row['sensor_warning_count']} warnings) | "
-            f"Overall: {row['overall_risk']:<6}"
-        )
-
-    print()
-    print(
-        "Batch prediction completed successfully."
-    )
+    print(out.drop(columns=["reason_codes"]).to_string(index=False))
+    print(f"\nSaved: {OUTPUT_FILE}")
+    print("\nOverall risk counts:")
+    print(out["overall_risk"].value_counts().to_string())
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

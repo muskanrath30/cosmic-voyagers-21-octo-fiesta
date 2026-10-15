@@ -1,358 +1,239 @@
 """
 Manufacturing Stage 2: Model Scoring
 
-Uses the trained AI4I 2020 Random Forest model.
+Team pipeline contract (unchanged):
 
-Team pipeline contract:
-    score(domain, record)
-
-Returns:
-    {
-        "score": float,
+    score(domain, record) -> {
+        "score": float,          # failure probability
         "reason_code": str,
         "factors": list[str],
-        "model": str
+        "model": str,
+        ...extra manufacturing fields...
     }
 
-The ML score represents the estimated probability of machine failure.
+The shared pipeline calls score("manufacturing", record).
 
-Sensor warning conditions are also evaluated because predictive
-maintenance should consider both model evidence and observable
-sensor conditions.
+The record may carry an "asset" key (machine_tool, metro_compressor,
+turbofan_engine, bearing). Without it the asset is inferred from the field
+names, and records using the original AI4I fields keep working as machine_tool.
 
-RAG knowledge is retrieved from the Manufacturing maintenance
-knowledge base using the detected sensor reason codes.
+What this stage does:
+    1. validates the record (numeric, finite, enough fields)
+    2. runs the asset's trained model (falls back to a heuristic, flagged
+       "degraded": true, if no trained model is available)
+    3. derives reason codes from healthy-data sensor bands
+    4. fuses ML risk and sensor risk (see risk_rules.py)
+    5. retrieves the matching maintenance-manual sections (RAG)
 """
 
-import os
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+if __package__ in (None, ""):  # allow running this file directly
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import json
+import threading
 
 import joblib
 import pandas as pd
 
-from manufacturing.preprocessing import prepare_dataframe
-from manufacturing.rag_retriever import retrieve_knowledge
+from manufacturing import config, datasets, risk_rules
+from manufacturing.preprocessing import InvalidRecordError, build_feature_row
+from manufacturing.rag_retriever import retrieve_sections
+from manufacturing.train import metrics_path, model_path, rul_path
 
+log = config.get_logger("scoring")
 
-_MODEL_PATH = os.path.join(
-    os.path.dirname(__file__),
-    "models",
-    "manufacturing_ai4i_model.joblib",
-)
+_LEGACY_THRESHOLD = 0.30   # original validated AI4I operating point
+_DEFAULT_THRESHOLD = 0.50
 
-_model = None
+_LOCK = threading.Lock()
+_CACHE: dict[str, dict] = {}
+_WARNED: set[str] = set()  # log "no trained model" once per asset, not per call
 
 
-# ---------------------------------------------------------------------------
-# Model loading
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- #
+# Artifact loading (cached, thread-safe)
+# --------------------------------------------------------------------------- #
+def _load_bundle(asset: str) -> dict:
+    """Model, RUL model, metrics, bands for one asset (cached)."""
 
-def _load_model():
-    """Load the trained Manufacturing model once."""
+    with _LOCK:
+        if asset in _CACHE:
+            return _CACHE[asset]
 
-    global _model
+        bundle = {"model": None, "rul": None, "metrics": {}, "bands": {}}
 
-    if _model is None and os.path.exists(_MODEL_PATH):
-        _model = joblib.load(_MODEL_PATH)
+        mp = model_path(asset)
+        if mp.exists():
+            try:
+                bundle["model"] = joblib.load(mp)
+            except Exception as exc:  # e.g. built with another sklearn version
+                log.error(f"could not load {asset} model: {exc}")
 
-    return _model
+        rp = rul_path(asset)
+        if rp.exists():
+            try:
+                bundle["rul"] = joblib.load(rp)
+            except Exception as exc:
+                log.error(f"could not load {asset} RUL model: {exc}")
 
+        if metrics_path(asset).exists():
+            bundle["metrics"] = json.loads(
+                metrics_path(asset).read_text(encoding="utf-8"))
 
-# ---------------------------------------------------------------------------
-# Sensor reasoning
-# ---------------------------------------------------------------------------
+        bundle["bands"] = risk_rules.load_bands(asset)
 
-def get_reason_codes(record: dict) -> list[str]:
-    """
-    Identify important sensor conditions.
+        _CACHE[asset] = bundle
+        return bundle
 
-    These thresholds are the validated rule-based sensor checks
-    from the local Manufacturing MVP.
-    """
 
-    reasons = []
+def reload_models() -> None:
+    """Drop cached artifacts (call after retraining)."""
+    with _LOCK:
+        _CACHE.clear()
 
-    if record.get("Tool wear", 0) >= 120:
-        reasons.append("HIGH_TOOL_WEAR")
 
-    if record.get("Torque", 0) >= 50:
-        reasons.append("HIGH_TORQUE")
+def model_status() -> dict:
+    """Per-asset readiness for health checks."""
 
-    if record.get("Process temperature", 0) >= 315:
-        reasons.append("HIGH_PROCESS_TEMPERATURE")
+    out = {}
+    for asset in datasets.ASSETS:
+        b = _load_bundle(asset)
+        out[asset] = {
+            "model_loaded": b["model"] is not None,
+            "data_source": b["metrics"].get("data_source"),
+            "trained_at": b["metrics"].get("trained_at"),
+        }
+    return out
 
-    if record.get("Air temperature", 0) >= 305:
-        reasons.append("HIGH_AIR_TEMPERATURE")
 
-    if record.get("Rotational speed", 0) <= 1400:
-        reasons.append("LOW_ROTATIONAL_SPEED")
+# --------------------------------------------------------------------------- #
+# Fallback
+# --------------------------------------------------------------------------- #
+def _fallback_probability(asset: str, reason_codes: list[str]) -> float:
+    """Heuristic used only when no trained model is available."""
 
-    if (
-        record.get("Rotational speed", 0) <= 1400
-        and record.get("Torque", 0) >= 50
-    ):
-        reasons.append("HIGH_MECHANICAL_LOAD")
+    n = len([c for c in reason_codes if c != risk_rules.NO_ANOMALY])
 
-    if not reasons:
-        reasons.append("NO_MAJOR_SENSOR_ANOMALY")
+    if asset == "machine_tool":
+        weights = {
+            "HIGH_TOOL_WEAR": 0.20, "HIGH_TORQUE": 0.20,
+            "HIGH_PROCESS_TEMPERATURE": 0.15, "HIGH_AIR_TEMPERATURE": 0.10,
+            "LOW_ROTATIONAL_SPEED": 0.15, "HIGH_MECHANICAL_LOAD": 0.15,
+        }
+        return min(round(sum(weights.get(c, 0) for c in reason_codes), 4), 0.99)
 
-    return reasons
+    return float(min(0.9, 0.15 + 0.25 * n))
 
 
-# ---------------------------------------------------------------------------
-# ML risk
-# ---------------------------------------------------------------------------
-
-def get_ml_risk(probability: float) -> str:
-    """
-    Convert ML failure probability into a risk label.
-
-    Thresholds selected from the local AI4I threshold analysis:
-        < 0.15       LOW
-        0.15 - <0.30 MEDIUM
-        >= 0.30      HIGH
-    """
-
-    if probability >= 0.30:
-        return "HIGH"
-
-    if probability >= 0.15:
-        return "MEDIUM"
-
-    return "LOW"
-
-
-# ---------------------------------------------------------------------------
-# Sensor risk
-# ---------------------------------------------------------------------------
-
-def get_sensor_risk(reason_codes: list[str]) -> str:
-    """Convert sensor warning count into a sensor risk level."""
-
-    if reason_codes == ["NO_MAJOR_SENSOR_ANOMALY"]:
-        return "LOW"
-
-    warning_count = len(reason_codes)
-
-    if warning_count >= 4:
-        return "HIGH"
-
-    if warning_count >= 2:
-        return "MEDIUM"
-
-    return "LOW"
-
-
-# ---------------------------------------------------------------------------
-# Overall risk
-# ---------------------------------------------------------------------------
-
-def _risk_rank(risk: str) -> int:
-    return {
-        "LOW": 1,
-        "MEDIUM": 2,
-        "HIGH": 3,
-    }[risk]
-
-
-def get_overall_risk(
-    ml_risk: str,
-    sensor_risk: str,
-) -> str:
-    """Use the more severe of ML and sensor risk."""
-
-    if _risk_rank(sensor_risk) > _risk_rank(ml_risk):
-        return sensor_risk
-
-    return ml_risk
-
-
-# ---------------------------------------------------------------------------
-# Recommendation
-# ---------------------------------------------------------------------------
-
-def get_recommendation(overall_risk: str) -> str:
-    """Return a maintenance recommendation."""
-
-    if overall_risk == "HIGH":
-        return "Urgent maintenance inspection recommended"
-
-    if overall_risk == "MEDIUM":
-        return "Schedule maintenance inspection"
-
-    return "Continue monitoring machine"
-
-
-# ---------------------------------------------------------------------------
-# Model inference
-# ---------------------------------------------------------------------------
-
-def _predict_probability(record: dict) -> float:
-    """Run the trained AI4I model."""
-
-    model = _load_model()
-
-    if model is None:
-        raise FileNotFoundError(
-            f"Manufacturing model not found: {_MODEL_PATH}"
-        )
-
-    input_df = pd.DataFrame([record])
-
-    prepared_df = prepare_dataframe(input_df)
-
-    feature_columns = [
-        "Type",
-        "Air temperature",
-        "Process temperature",
-        "Rotational speed",
-        "Torque",
-        "Tool wear",
-    ]
-
-    X = prepared_df[feature_columns]
-
-    probability = float(
-        model.predict_proba(X)[0][1]
-    )
-
-    return probability
-
-
-# ---------------------------------------------------------------------------
-# Deterministic fallback
-# ---------------------------------------------------------------------------
-
-def _fallback_score(record: dict) -> float:
-    """
-    Deterministic fallback when the trained model is unavailable.
-
-    This is NOT a replacement for the trained model.
-    It only keeps the pipeline operational.
-    """
-
-    score = 0.0
-
-    if record.get("Tool wear", 0) >= 120:
-        score += 0.20
-
-    if record.get("Torque", 0) >= 50:
-        score += 0.20
-
-    if record.get("Process temperature", 0) >= 315:
-        score += 0.15
-
-    if record.get("Air temperature", 0) >= 305:
-        score += 0.10
-
-    if record.get("Rotational speed", 0) <= 1400:
-        score += 0.15
-
-    if (
-        record.get("Rotational speed", 0) <= 1400
-        and record.get("Torque", 0) >= 50
-    ):
-        score += 0.15
-
-    return min(round(score, 4), 0.99)
-
-
-# ---------------------------------------------------------------------------
-# Public pipeline entrypoint
-# ---------------------------------------------------------------------------
-
+# --------------------------------------------------------------------------- #
+# Public entrypoint
+# --------------------------------------------------------------------------- #
 def score(domain: str, record: dict) -> dict:
-    """
-    Score one Manufacturing machine.
-
-    The shared pipeline calls this function with:
-        score("manufacturing", record)
-    """
+    """Score one record. See module docstring for the contract."""
 
     if domain not in ("manufacturing", "sensor"):
-        raise ValueError(
-            f"Unsupported Manufacturing domain: {domain}"
-        )
+        raise ValueError(f"Unsupported Manufacturing domain: {domain}")
 
-    reason_codes = get_reason_codes(record)
+    if not isinstance(record, dict):
+        raise InvalidRecordError("record must be an object")
 
-    try:
-        probability = _predict_probability(record)
+    asset = datasets.infer_asset(record)
+    spec = datasets.get_spec(asset)
+    bundle = _load_bundle(asset)
+    bands = bundle["bands"]
 
-        model_name = "random_forest_ai4i"
+    defaults = {f: b["median"] for f, b in bands.items() if "median" in b}
+    defaults.update({f: b["mode"] for f, b in bands.items() if "mode" in b})
 
-    except Exception as exc:
+    allowed = {"Type": {"L", "M", "H"}} if asset == "machine_tool" else {}
+    row = build_feature_row(
+        spec["features"], spec["categorical"], record,
+        defaults=defaults, allowed_categories=allowed,
+    )
 
-        print(
-            f"[Manufacturing ML scoring failed, "
-            f"using deterministic fallback: {exc}]"
-        )
+    reason_codes = risk_rules.get_reason_codes(
+        asset, {**record, **row}, bands=_numeric_bands(bands))
 
-        probability = _fallback_score(record)
-
+    degraded = bundle["model"] is None
+    if not degraded:
+        frame = pd.DataFrame([row], columns=spec["features"])
+        probability = float(bundle["model"].predict_proba(frame)[0][1])
+        model_name = "random_forest"
+    else:
+        if asset not in _WARNED:
+            _WARNED.add(asset)
+            log.warning(f"no trained model for {asset}; using heuristic fallback",
+                        extra={"fields": {"asset": asset, "degraded": True}})
+        probability = _fallback_probability(asset, reason_codes)
         model_name = "heuristic_fallback"
 
     probability = round(probability, 4)
 
-    ml_risk = get_ml_risk(probability)
-
-    sensor_risk = get_sensor_risk(reason_codes)
-
-    overall_risk = get_overall_risk(
-        ml_risk,
-        sensor_risk,
+    threshold = bundle["metrics"].get(
+        "operating_threshold",
+        _LEGACY_THRESHOLD if asset == "machine_tool" else _DEFAULT_THRESHOLD,
     )
 
-    recommendation = get_recommendation(
-        overall_risk
-    )
+    ml_risk = risk_rules.get_ml_risk(probability, threshold)
+    sensor_risk = risk_rules.get_sensor_risk(asset, reason_codes)
+    overall_risk = risk_rules.get_overall_risk(ml_risk, sensor_risk)
 
-    factors = [
-        code
-        for code in reason_codes
-        if code != "NO_MAJOR_SENSOR_ANOMALY"
+    factors = [c for c in reason_codes if c != risk_rules.NO_ANOMALY] or [
+        "no major sensor anomaly identified"
     ]
 
-    if not factors:
-        factors = [
-            "no major sensor anomaly identified"
-        ]
-
-    # -----------------------------------------------------------------------
-    # RAG knowledge retrieval
-    # -----------------------------------------------------------------------
     try:
-        knowledge_context = retrieve_knowledge(
-            reason_codes
-        )
-    except Exception as exc:
-        print(
-            f"[Manufacturing RAG retrieval failed: {exc}]"
-        )
-        knowledge_context = ""
+        sections = retrieve_sections(reason_codes)
+    except Exception as exc:  # retrieval must never break scoring
+        log.error(f"RAG retrieval failed: {exc}")
+        sections = []
 
-    return {
+    result = {
         "score": probability,
-        "reason_code": (
-            reason_codes[0]
-            if reason_codes
-            else "NO_MAJOR_SENSOR_ANOMALY"
-        ),
+        "reason_code": reason_codes[0],
         "factors": factors[:6],
         "model": model_name,
+        # manufacturing extras
+        "asset": asset,
+        "asset_name": spec["name"],
+        "id": record.get("id") or record.get("machine_id"),
         "ml_risk": ml_risk,
         "sensor_risk": sensor_risk,
         "overall_risk": overall_risk,
+        "operating_threshold": threshold,
         "reason_codes": reason_codes,
-        "recommendation": recommendation,
-        "model_version": "manufacturing-ai4i-v1",
-        "knowledge_context": knowledge_context,
+        "recommendation": risk_rules.get_recommendation(overall_risk),
+        "model_version": _model_version(asset, bundle),
+        "data_source": bundle["metrics"].get("data_source", "unknown"),
+        "degraded": degraded,
+        "knowledge_context": "\n\n".join(s["text"] for s in sections),
+        "knowledge_sources": [s["title"] for s in sections],
     }
 
+    if bundle["rul"] is not None:
+        frame = pd.DataFrame([row], columns=spec["features"])
+        result["rul_cycles"] = round(float(bundle["rul"].predict(frame)[0]), 1)
 
-# ---------------------------------------------------------------------------
+    return result
+
+
+def _numeric_bands(bands: dict) -> dict:
+    return {f: b for f, b in bands.items() if "lo" in b}
+
+
+def _model_version(asset: str, bundle: dict) -> str:
+    stamp = bundle["metrics"].get("trained_at", "untrained")[:10]
+    return f"{asset}-{stamp}"
+
+
+# --------------------------------------------------------------------------- #
 # Local test
-# ---------------------------------------------------------------------------
-
+# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
 
     test_machine = {
@@ -366,10 +247,7 @@ if __name__ == "__main__":
         "Tool wear": 180.0,
     }
 
-    result = score(
-        "manufacturing",
-        test_machine,
-    )
+    result = score("manufacturing", test_machine)
 
     print()
     print("=" * 80)
@@ -377,4 +255,5 @@ if __name__ == "__main__":
     print("=" * 80)
 
     for key, value in result.items():
-        print(f"{key}: {value}")
+        if key != "knowledge_context":
+            print(f"{key}: {value}")

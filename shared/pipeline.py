@@ -67,11 +67,20 @@ def run_pipeline(domain: str, input_record: dict) -> dict:
         record,
     )
 
-    explanation = gemini_reasoning.explain(
-        domain,
-        record,
-        score_result,
-    )
+    is_manufacturing = domain in _MANUFACTURING_DOMAINS
+    reasoning_source = None
+
+    if is_manufacturing:
+        explanation, reasoning_source = gemini_reasoning.explain_manufacturing(
+            record,
+            score_result,
+        )
+    else:
+        explanation = gemini_reasoning.explain(
+            domain,
+            record,
+            score_result,
+        )
 
     action = agent_decision.decide_action(
         domain,
@@ -86,7 +95,7 @@ def run_pipeline(domain: str, input_record: dict) -> dict:
         action,
     )
 
-    return {
+    result = {
         "decision_id": saved["id"],
         "created_at": saved["created_at"],
         "domain": domain,
@@ -95,6 +104,24 @@ def run_pipeline(domain: str, input_record: dict) -> dict:
         "explanation": explanation,
         "action": action,
     }
+
+    if is_manufacturing:
+        # Manufacturing extras: which stage answered, which manual sections
+        # grounded it, and the work order for MEDIUM/HIGH risk.
+        from manufacturing import agents
+
+        wo = agents.create_work_order(
+            score_result,
+            explanation,
+            reasoning_source,
+            action=action,
+        )
+        result["reasoning_source"] = reasoning_source
+        result["manual_sections"] = score_result.get("knowledge_sources", [])
+        result["work_order"] = wo["work_order"]
+        result["work_order_persisted"] = wo["work_order_persisted"]
+
+    return result
 
 
 def run_pipeline_on_samples():

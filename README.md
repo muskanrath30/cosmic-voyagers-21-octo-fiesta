@@ -28,7 +28,15 @@ cosmic-voyagers/
 │       ├── inspect_loan_columns.py   run FIRST on a new loan CSV
 │       ├── train_fraud_model.py
 │       └── train_loan_model.py
-├── manufacturing/        <- Manufacturing
+├── manufacturing/        <- Manufacturing: Predictive Maintenance Copilot
+│   ├── model_scoring.py       Stage 2: 4 assets (machine tool, metro compressor,
+│   │                          turbofan, bearing), ML + sensor-band fusion
+│   ├── data_ingestion.py      Stage 1: 28 sample machines + live-replay stream
+│   ├── gemini_reasoning.py    Stage 3 (Vertex/API key, retry, circuit breaker)
+│   ├── rag_retriever.py       maintenance-manual retrieval (knowledge/)
+│   ├── agents.py              Sensor Monitor -> Prediction -> Diagnosis -> Work Order
+│   │                          (plain Python or Google ADK)
+│   ├── train.py, fetch_datasets.py, tests/   see manufacturing/README.md
 ├── main.py               <- Cloud Run entrypoint (FastAPI) -- serves the UI
 │                             at "/" and all API routes under "/api/*"
 ├── Dockerfile
@@ -39,9 +47,9 @@ cosmic-voyagers/
 domain-specific -- BFSI's fraud/loan models have nothing in common with
 manufacturing's sensor/failure models. Stages 3-5 (explanation, decision,
 state) are the same code regardless of domain. `shared/pipeline.py`
-currently imports from `bfsi/` directly; when manufacturing's
-`data_ingestion.py` / `model_scoring.py` exist, the pipeline would route
-to whichever vertical a request's domain belongs to.
+routes by domain: `transaction`/`loan` go to `bfsi/`, `manufacturing`
+goes to `manufacturing/`. BFSI data is optional at runtime: without the
+CSVs only the BFSI routes return 503.
 
 ## Frontend
 
@@ -157,3 +165,37 @@ than on every cold start -- important given judging allows no retries.
 Note: the trained `.joblib` models are gitignored (large binary files) --
 either bake them into the Docker image explicitly, or upload them
 somewhere the container can fetch at startup, before deploying.
+
+
+## Manufacturing track (Predictive Maintenance Copilot)
+
+The dashboard opens in Manufacturing mode. Pick a machine, get failure
+probability, risk (ML + sensor rules), a Gemini diagnosis grounded in the
+maintenance manual (sections shown), and a work order. "Run 4-agent chain"
+runs Sensor Monitor -> Prediction -> Diagnosis -> Work Order, in plain
+Python or through Google ADK (same decisions). "Replay sensor stream" shows
+risk rising over time for one asset.
+
+```bash
+pip install -r requirements.txt
+python manufacturing/download_dataset.py        # AI4I (optional)
+python -m manufacturing.fetch_datasets          # MetroPT-3 + CWRU (needs internet)
+python -m manufacturing.train                   # trains every asset that has data
+python -m manufacturing.gemini_reasoning        # checks the real Gemini call
+python main.py                                  # http://localhost:8080
+pytest manufacturing/tests -q
+```
+
+Manufacturing endpoints: `GET /api/records?domain=manufacturing`,
+`POST /api/score {"domain":"manufacturing","record":{"id":"TF-001"}}`,
+`GET /api/manufacturing/stream?asset=turbofan_engine`,
+`POST /api/agents/run {"record":{"id":"TF-001"},"mode":"adk"}`, `GET /health`.
+
+The Dockerfile trains the models at image build, so the image needs the
+data files (the bundled turbofan FD001 file always works; commit
+`manufacturing/data/samples/metropt_sample.csv` and `cwru_sample.npz`
+after running `fetch_datasets`). Cloud Run env vars:
+`GOOGLE_CLOUD_PROJECT`, `GOOGLE_GENAI_USE_VERTEXAI=true`,
+`GOOGLE_CLOUD_LOCATION`, `GEMINI_MODEL_NAME`, `RATE_LIMIT_PER_MIN`.
+Deploy with `--max-instances 3 --timeout 60` and a billing budget alert.
+See `manufacturing/README.md` for details, tested vs untested items and limits.

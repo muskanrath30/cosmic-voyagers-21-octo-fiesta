@@ -1,310 +1,77 @@
+"""
+Predict one record end to end (score + RAG + Gemini explanation).
+
+    python -m manufacturing.predict                         # demo machine M004
+    python -m manufacturing.predict --id TF-001             # a sample record
+    python -m manufacturing.predict --id M004 --no-llm
+
+predict_machine(record) keeps the original result shape (machine_id,
+failure_probability, ...) and delegates all scoring to model_scoring.score, so
+there is exactly one implementation of the scoring logic.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
 from pathlib import Path
 
-import joblib
-import pandas as pd
+if __package__ in (None, ""):  # allow `python predict.py`
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from gemini_reasoning import generate_explanation
-
-
-ROOT = Path(__file__).resolve().parent
-
-MODEL_FILE = (
-    ROOT
-    / "models"
-    / "manufacturing_ai4i_model.joblib"
-)
+from manufacturing import data_ingestion, gemini_reasoning, model_scoring
 
 
-def get_reason_codes(
-    record: dict,
-) -> list[str]:
-    """
-    Identify sensor conditions that may indicate
-    increased maintenance risk.
-    """
+def predict_machine(record: dict, use_llm: bool = True) -> dict:
+    """Run predictive-maintenance inference for one record."""
 
-    reasons = []
-
-    if record["Tool wear"] >= 120:
-        reasons.append(
-            "HIGH_TOOL_WEAR"
-        )
-
-    if record["Torque"] >= 50:
-        reasons.append(
-            "HIGH_TORQUE"
-        )
-
-    if record["Process temperature"] >= 315:
-        reasons.append(
-            "HIGH_PROCESS_TEMPERATURE"
-        )
-
-    if record["Air temperature"] >= 305:
-        reasons.append(
-            "HIGH_AIR_TEMPERATURE"
-        )
-
-    if record["Rotational speed"] <= 1400:
-        reasons.append(
-            "LOW_ROTATIONAL_SPEED"
-        )
-
-    if (
-        record["Rotational speed"] <= 1400
-        and record["Torque"] >= 50
-    ):
-        reasons.append(
-            "HIGH_MECHANICAL_LOAD"
-        )
-
-    if not reasons:
-        reasons.append(
-            "NO_MAJOR_SENSOR_ANOMALY"
-        )
-
-    return reasons
-
-
-def get_ml_risk(
-    probability: float,
-) -> str:
-    """
-    Convert ML failure probability into
-    an ML-only risk level.
-    """
-
-    if probability >= 0.30:
-        return "HIGH"
-
-    if probability >= 0.15:
-        return "MEDIUM"
-
-    return "LOW"
-
-
-def get_sensor_risk(
-    reason_codes: list[str],
-) -> str:
-    """
-    Determine sensor-condition risk independently
-    from the ML model.
-    """
-
-    if (
-        "NO_MAJOR_SENSOR_ANOMALY"
-        in reason_codes
-    ):
-        return "LOW"
-
-    warning_count = len(
-        reason_codes
-    )
-
-    if warning_count >= 4:
-        return "HIGH"
-
-    if warning_count >= 2:
-        return "MEDIUM"
-
-    return "LOW"
-
-
-def get_overall_risk(
-    ml_risk: str,
-    sensor_risk: str,
-) -> str:
-    """
-    Combine ML risk and sensor risk.
-
-    The more severe signal determines
-    the overall risk.
-    """
-
-    risk_priority = {
-        "LOW": 0,
-        "MEDIUM": 1,
-        "HIGH": 2,
-    }
-
-    if (
-        risk_priority[sensor_risk]
-        > risk_priority[ml_risk]
-    ):
-        return sensor_risk
-
-    return ml_risk
-
-
-def get_recommendation(
-    overall_risk: str,
-) -> str:
-    """
-    Generate a maintenance recommendation.
-
-    The system does not automatically stop
-    physical equipment.
-    """
-
-    if overall_risk == "HIGH":
-        return (
-            "Urgent maintenance inspection recommended"
-        )
-
-    if overall_risk == "MEDIUM":
-        return (
-            "Schedule maintenance inspection"
-        )
-
-    return (
-        "Continue monitoring machine"
-    )
-
-
-def predict_machine(
-    record: dict,
-) -> dict:
-    """
-    Run predictive-maintenance inference
-    for one machine.
-    """
-
-    model = joblib.load(
-        MODEL_FILE
-    )
-
-    dataframe = pd.DataFrame(
-        [
-            {
-                "Air temperature":
-                    record["Air temperature"],
-
-                "Process temperature":
-                    record["Process temperature"],
-
-                "Rotational speed":
-                    record["Rotational speed"],
-
-                "Torque":
-                    record["Torque"],
-
-                "Tool wear":
-                    record["Tool wear"],
-
-                "Type":
-                    record["Type"],
-            }
-        ]
-    )
-
-    probability = model.predict_proba(
-        dataframe
-    )[0][1]
-
-    probability = float(
-        probability
-    )
-
-    reason_codes = get_reason_codes(
-        record
-    )
-
-    ml_risk = get_ml_risk(
-        probability
-    )
-
-    sensor_risk = get_sensor_risk(
-        reason_codes
-    )
-
-    overall_risk = get_overall_risk(
-        ml_risk,
-        sensor_risk,
-    )
-
-    recommendation = get_recommendation(
-        overall_risk
-    )
+    scored = model_scoring.score("manufacturing", record)
 
     prediction = {
-        "machine_id":
-            record["machine_id"],
-
-        "failure_probability":
-            round(
-                probability,
-                4,
-            ),
-
-        "ml_risk":
-            ml_risk,
-
-        "sensor_warning_count":
-            (
-                0
-                if "NO_MAJOR_SENSOR_ANOMALY"
-                in reason_codes
-                else len(reason_codes)
-            ),
-
-        "sensor_risk":
-            sensor_risk,
-
-        "overall_risk":
-            overall_risk,
-
-        "reason_codes":
-            reason_codes,
-
-        "recommendation":
-            recommendation,
-
-        "model_version":
-            "manufacturing-ai4i-v1",
+        "machine_id": scored["id"],
+        "asset": scored["asset"],
+        "failure_probability": scored["score"],
+        "ml_risk": scored["ml_risk"],
+        "sensor_warning_count": len(
+            [c for c in scored["reason_codes"] if c != "NO_MAJOR_SENSOR_ANOMALY"]),
+        "sensor_risk": scored["sensor_risk"],
+        "overall_risk": scored["overall_risk"],
+        "reason_codes": scored["reason_codes"],
+        "recommendation": scored["recommendation"],
+        "model_version": scored["model_version"],
+        "data_source": scored["data_source"],
+        "degraded": scored["degraded"],
+        "knowledge_sources": scored["knowledge_sources"],
     }
+    if "rul_cycles" in scored:
+        prediction["rul_cycles"] = scored["rul_cycles"]
 
-    explanation, reasoning_source = (
-        generate_explanation(
-            prediction
-        )
-    )
+    if use_llm:
+        explanation, source = gemini_reasoning.generate_explanation(scored)
+    else:
+        explanation = gemini_reasoning.get_fallback_explanation(scored)
+        source = "LOCAL_FALLBACK"
 
-    prediction["explanation"] = (
-        explanation
-    )
-
-    prediction["reasoning_source"] = (
-        reasoning_source
-    )
-
+    prediction["explanation"] = explanation
+    prediction["reasoning_source"] = source
     return prediction
 
 
 if __name__ == "__main__":
 
-    test_machine = {
-        "machine_id": "M004",
-        "Type": "L",
-        "Air temperature": 310.0,
-        "Process temperature": 320.0,
-        "Rotational speed": 1350,
-        "Torque": 60.0,
-        "Tool wear": 180,
-    }
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--id", default="M004", help="sample record id")
+    ap.add_argument("--no-llm", action="store_true")
+    args = ap.parse_args()
 
-    result = predict_machine(
-        test_machine
-    )
+    record = data_ingestion.get_record("manufacturing", args.id)
+    if record is None:
+        sys.exit(f"Unknown record id: {args.id}")
 
-    print()
+    result = predict_machine(record, use_llm=not args.no_llm)
+
     print("=" * 80)
     print("MANUFACTURING PREDICTION")
     print("=" * 80)
-
-    print()
-
-    for key, value in result.items():
-
-        print(
-            f"{key}: {value}"
-        )
+    print(json.dumps(result, indent=2, default=str))

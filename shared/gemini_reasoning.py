@@ -122,12 +122,36 @@ def _mock_explain(domain: str, score_result: dict) -> str:
     )
 
 
+def explain_manufacturing(record: dict, score_result: dict) -> tuple[str, str]:
+    """
+    Manufacturing explanation via the manufacturing package (Vertex AI or API
+    key, timeout/retry/circuit breaker, RAG-grounded prompt).
+
+    Returns (text, reasoning_source) where reasoning_source is "GEMINI" or
+    "LOCAL_FALLBACK", so the UI can show whether Gemini really answered.
+    """
+
+    try:
+        from manufacturing.gemini_reasoning import generate_explanation
+
+        return generate_explanation(score_result)
+    except Exception as e:  # never break the pipeline on the explanation stage
+        return (
+            f"[EXPLANATION FAILED: {e}] " + _mock_explain("manufacturing", score_result),
+            "LOCAL_FALLBACK",
+        )
+
+
 def explain(
     domain: str,
     record: dict,
     score_result: dict,
 ) -> str:
     """Return a plain-language explanation for a score result."""
+
+    # Manufacturing uses the upgraded RAG + Gemini stage (see above).
+    if domain in ("manufacturing", "sensor"):
+        return explain_manufacturing(record, score_result)[0]
 
     api_key = os.environ.get("GOOGLE_API_KEY")
 

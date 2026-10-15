@@ -8,3 +8,9 @@ pandas
 scikit-learn
 xgboost
 joblib
+
+# Manufacturing track
+scipy
+ucimlrepo                 # AI4I download at image build
+google-genai==2.29.0      # Gemini via Vertex AI or API key (tested version)
+google-adk==2.11.0        # Sensor Monitor -> Prediction -> Diagnosis -> Work Order (tested version)

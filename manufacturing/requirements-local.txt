@@ -1,5 +1,19 @@
-pandas
-numpy
-scikit-learn
-joblib
-ucimlrepo
+# Core (training, scoring, RAG, local fallbacks)
+pandas>=2.2
+numpy>=1.26
+scikit-learn>=1.5
+joblib>=1.4
+scipy>=1.13
+ucimlrepo            # download_dataset.py (AI4I)
+
+# Gemini + agents (pin exact versions you tested; see README)
+google-genai==2.29.0   # tested version
+google-adk==2.11.0     # tested version
+
+# Google Cloud services (optional locally; needed on Cloud Run)
+google-cloud-firestore>=2.16
+google-cloud-bigquery>=3.25
+google-cloud-storage>=2.18
+
+# Tests
+pytest>=8

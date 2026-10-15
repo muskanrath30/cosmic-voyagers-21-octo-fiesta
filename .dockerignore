@@ -1,0 +1,15 @@
+.git
+.gitignore
+__pycache__/
+*.pyc
+venv/
+.env
+.DS_Store
+# BFSI raw data and models are large and not part of the manufacturing deployment
+bfsi/data/
+bfsi/models/
+# trained manufacturing artifacts are rebuilt inside the image
+manufacturing/models/*.joblib
+manufacturing/models/*.json
+manufacturing/data/predictions.csv
+manufacturing/tests/

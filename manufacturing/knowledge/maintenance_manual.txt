@@ -1,101 +1,105 @@
-MANUFACTURING PREDICTIVE MAINTENANCE KNOWLEDGE BASE
+# Manufacturing Predictive Maintenance Knowledge Base
+Multi-asset maintenance guidance used to ground the assistant's explanations.
+Format: sections start with "## ", and a "Codes:" line lists the reason codes a
+section applies to. Guidance is general engineering practice; always follow the
+plant's approved procedures and the OEM manual.
 
-GENERAL PRINCIPLES
+## GENERAL PRINCIPLES
+Codes: ALL
+A machine-learning failure probability is a statistical signal and does not by
+itself prove that a machine has failed. Alerts are decision-support information
+for qualified maintenance personnel. Physical equipment must not be stopped
+automatically because a model produced a high-risk prediction. A low model
+probability together with several sensor warnings should trigger investigation.
+A high model probability with few visible sensor warnings should also be
+investigated, because the model can capture non-linear relationships that
+simple threshold rules do not.
 
-Machine-learning failure probability is a statistical signal and does not by itself prove that a machine has failed.
+## MAINTENANCE DECISION PRINCIPLES
+Codes: ALL
+HIGH risk: arrange an inspection at the next safe opportunity and brief the
+shift supervisor. MEDIUM risk: schedule an inspection within the planned
+maintenance window and keep watching the trend. LOW risk: continue monitoring.
+Record every inspection outcome against the alert so the model and thresholds
+can be reviewed. If an inspection finds nothing, log it as a false alarm; if it
+finds a defect, log the failure mode.
 
-Predictive-maintenance alerts should be treated as decision-support information for qualified maintenance personnel.
+## CNC MACHINE TOOL - HIGH TOOL WEAR
+Codes: HIGH_TOOL_WEAR
+Tool wear is accumulated cutting time. High tool wear raises cutting forces and
+can lead to tool breakage or poor surface finish. Check the tool against its
+approved service interval, inspect the cutting edge for chipping or flank wear,
+and follow the approved tool-change procedure.
 
-Physical equipment should not be automatically stopped solely because an ML model produces a high-risk prediction.
+## CNC MACHINE TOOL - HIGH TORQUE AND MECHANICAL LOAD
+Codes: HIGH_TORQUE, HIGH_MECHANICAL_LOAD, LOW_ROTATIONAL_SPEED
+Elevated torque, especially together with reduced rotational speed, indicates
+increased cutting resistance or mechanical loading. Inspect tooling and the
+spindle, review feed and speed settings, and check for obstructions or
+lubrication problems. Prioritise this inspection when both conditions occur
+together.
 
-HIGH TOOL WEAR
+## CNC MACHINE TOOL - TEMPERATURE
+Codes: HIGH_PROCESS_TEMPERATURE, HIGH_AIR_TEMPERATURE
+Elevated process or ambient air temperature increases thermal stress. Inspect
+coolant flow and condition, check ventilation and cooling, and review the recent
+temperature trend. A process temperature that rises faster than the ambient
+temperature points to a machine-side cause rather than the environment.
 
-Tool wear represents accumulated tool usage.
+## METRO COMPRESSOR - PRESSURE LOSS
+Codes: LOW_SYSTEM_PRESSURE, RESERVOIR_PRESSURE_MISMATCH
+Low pneumatic-panel pressure (TP2/TP3), or a reservoir pressure that no longer
+follows the panel pressure, is a typical signature of an air leak in the
+air-production unit. Inspect the air-dryer towers, the separator filter
+discharge, pipework joints and the intake valves. Check whether the compressor
+is running continuously to make up for lost pressure. Escalate to depot
+maintenance if the deficit persists across duty cycles.
 
-High tool wear can increase cutting forces and may contribute to tool degradation or tool failure.
+## METRO COMPRESSOR - ELECTRICAL AND THERMAL
+Codes: HIGH_MOTOR_CURRENT, HIGH_OIL_TEMPERATURE
+Higher motor current together with rising oil temperature can indicate increased
+mechanical loading, a developing oil leak or degraded lubrication. Inspect the
+oil level and condition, check motor phase-current balance and review recent
+duty cycles. A sustained rise in both warrants inspection before the next
+extended service period.
 
-When high tool wear is detected:
-- Inspect the cutting tool condition.
-- Check whether the tool has reached its approved service interval.
-- Inspect for abnormal wear or damage.
-- Follow the approved tool inspection or replacement procedure.
+## METRO COMPRESSOR - DRYER AND PRESSURE SWITCH
+Codes: DRYER_DISCHARGE_ANOMALY, LOW_PRESSURE_SWITCH_ACTIVE
+An abnormal dryer discharge pressure or an active low-pressure switch means the
+air-drying cycle may not be completing. Inspect the solenoid valves and pressure
+switch and verify the tower cycling logic. Repeated low-pressure switch
+activation can starve downstream brake and door systems.
 
-HIGH TORQUE
+## TURBOFAN - SENSOR DEVIATIONS
+Codes: S2_HIGH, S2_LOW, S3_HIGH, S3_LOW, S4_HIGH, S4_LOW, S7_HIGH, S7_LOW, S8_HIGH, S8_LOW, S9_HIGH, S9_LOW, S11_HIGH, S11_LOW, S12_HIGH, S12_LOW, S13_HIGH, S13_LOW, S14_HIGH, S14_LOW, S15_HIGH, S15_LOW, S17_HIGH, S17_LOW, S20_HIGH, S20_LOW, S21_HIGH, S21_LOW
+Several sensor channels outside their healthy operating band indicate developing
+engine degradation, most often in the high-pressure compressor or the fan.
+Compare against the fleet baseline, trend the deviation over successive cycles,
+and plan a borescope inspection of compressor blades and the bleed-valve and
+exhaust gas path if the deviation persists.
 
-Elevated torque can indicate increased cutting resistance, increased mechanical loading, tooling degradation, or abnormal operating conditions.
+## TURBOFAN - REMAINING USEFUL LIFE
+Codes: S2_HIGH, S3_HIGH, S4_HIGH, S7_LOW, S11_HIGH, S12_LOW, S15_HIGH, S20_LOW, S21_LOW
+An estimated remaining useful life (RUL) is a planning aid with uncertainty,
+particularly far from failure. Use it to schedule the shop visit, not to
+declare an engine unfit. A short RUL estimate combined with several deviating
+channels justifies bringing the inspection forward.
 
-When high torque is detected:
-- Inspect tooling and mechanical load conditions.
-- Check for abnormal resistance.
-- Review recent machine operating conditions.
-- Follow approved maintenance procedures.
+## BEARING - VIBRATION
+Codes: HIGH_DRIVE_END_VIBRATION, HIGH_FAN_END_VIBRATION
+High RMS vibration at the drive-end or fan-end accelerometer indicates
+increased bearing or shaft loading. Check mounting, alignment and balance,
+inspect lubrication, and compare with the previous baseline for the same
+machine.
 
-HIGH PROCESS TEMPERATURE
+## BEARING - IMPULSIVE FAULT SIGNATURE
+Codes: IMPULSIVE_VIBRATION_KURTOSIS, HIGH_CREST_FACTOR
+High kurtosis or a high crest factor means spiky, impulsive vibration, which is
+characteristic of early localised defects such as outer-race, inner-race or
+rolling-element damage. Inspect the bearing, check lubrication and plan a
+replacement before the defect propagates.
 
-Elevated process temperature may indicate increased thermal stress or abnormal operating conditions.
-
-When high process temperature is detected:
-- Inspect cooling conditions.
-- Check process operating parameters.
-- Review recent temperature trends.
-- Follow approved thermal inspection procedures.
-
-HIGH AIR TEMPERATURE
-
-Elevated air temperature can contribute to increased machine thermal conditions.
-
-When high air temperature is detected:
-- Check ambient operating conditions.
-- Verify ventilation and cooling.
-- Review temperature trends.
-- Follow approved environmental operating procedures.
-
-LOW ROTATIONAL SPEED
-
-Unexpectedly low rotational speed may occur when the machine experiences increased mechanical resistance or abnormal operating conditions.
-
-When low rotational speed occurs together with high torque:
-- Prioritize inspection of mechanical loading.
-- Inspect tooling and spindle conditions.
-- Review operating parameters.
-
-HIGH MECHANICAL LOAD
-
-The combination of low rotational speed and high torque can indicate increased mechanical resistance or loading.
-
-When high mechanical load is detected:
-- Inspect tooling.
-- Inspect spindle and mechanical components.
-- Review recent machine operating conditions.
-- Escalate to qualified maintenance personnel when required.
-
-MULTIPLE WARNING CONDITIONS
-
-Multiple simultaneous sensor warnings should receive higher maintenance priority than an isolated warning.
-
-However, sensor warnings alone do not prove that equipment failure has occurred.
-
-ML AND SENSOR EVIDENCE
-
-The ML model provides an estimated probability of machine failure.
-
-Sensor reason codes provide interpretable evidence about operating conditions.
-
-The two signals should be considered together.
-
-A low ML probability with multiple sensor warnings should trigger investigation rather than being treated as proof of failure.
-
-A high ML probability with few visible sensor warnings should also be investigated because the model may identify nonlinear relationships that are not represented by simple threshold rules.
-
-MAINTENANCE DECISION PRINCIPLES
-
-LOW RISK:
-Continue monitoring and collect additional operating data.
-
-MEDIUM RISK:
-Schedule a maintenance inspection and review relevant sensor trends.
-
-HIGH RISK:
-Prioritize an urgent maintenance inspection by qualified personnel.
-
-The system should recommend investigation and maintenance actions. It should not automatically shut down physical equipment based only on model predictions.
+## NO MAJOR ANOMALY
+Codes: NO_MAJOR_SENSOR_ANOMALY
+No significant sensor anomaly was detected. Continue normal monitoring and data
+collection. No immediate maintenance action is required.

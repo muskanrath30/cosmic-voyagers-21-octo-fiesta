@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Voice-First Fraud & Risk Assistant</title>
+  <title>Voice-First Predictive Maintenance Copilot</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <header class="topbar">
     <div>
-      <div class="eyebrow">AI BUILDER CUP HACKATHON PROTOTYPE (BFSI)</div>
-      <h1>Voice-First Fraud & Risk Assistant</h1>
-      <p>One shared five-stage pipeline for transaction fraud and loan applicant risk.</p>
+      <div class="eyebrow" id="eyebrow">AI BUILDER CUP HACKATHON PROTOTYPE (MANUFACTURING)</div>
+      <h1 id="pageTitle">Voice-First Predictive Maintenance Copilot</h1>
+      <p id="pageSub">Sensor readings in, failure risk out: ML prediction, Gemini diagnosis grounded in the maintenance manual, and a work order, through one shared five-stage pipeline.</p>
     </div>
     <div class="status-pill"><span class="dot"></span> Demo mode</div>
   </header>
@@ -23,19 +23,20 @@
           <button class="mic" id="micBtn" title="Speak a question">◉</button>
         </div>
         <div class="mode-switch">
-          <button class="mode active" data-domain="transaction">Transaction</button>
+          <button class="mode active" data-domain="manufacturing">Machine maintenance</button>
+          <button class="mode" data-domain="transaction">Transaction</button>
           <button class="mode" data-domain="loan">Loan application</button>
         </div>
         <div class="question-box">
           <input id="question" placeholder='Try: "Why was this flagged?"'>
           <button id="askBtn">Ask</button>
         </div>
-        <div id="voiceStatus" class="muted">Select a sample below, then run the pipeline.</div>
+        <div id="voiceStatus" class="muted">Select a machine below, then run the pipeline.</div>
       </div>
       <div class="metrics">
         <div class="metric"><span>Pipeline</span><strong>5 stages</strong><small>shared architecture</small></div>
-        <div class="metric"><span>Models</span><strong>2</strong><small>fraud + loan risk</small></div>
-        <div class="metric"><span>Records</span><strong id="recordCount">12</strong><small>live sample</small></div>
+        <div class="metric"><span>Models</span><strong id="mModelsV">4</strong><small id="mModelsS">machine, compressor, engine, bearing</small></div>
+        <div class="metric"><span>Records</span><strong id="recordCount">28</strong><small>sample set</small></div>
       </div>
     </section>
     <section class="content-grid">
@@ -45,6 +46,19 @@
           <button class="ghost" id="refreshBtn">Refresh</button>
         </div>
         <div id="recordList" class="record-list"></div>
+        <div id="timelineWrap" class="timeline-wrap">
+          <div class="section-kicker">LIVE SENSOR REPLAY</div>
+          <div class="agent-controls">
+            <select id="replayAsset">
+              <option value="turbofan_engine">Turbofan engine</option>
+              <option value="metro_compressor">Metro compressor</option>
+              <option value="bearing">Bearing</option>
+            </select>
+            <button class="ghost" id="replayBtn">Replay sensor stream</button>
+          </div>
+          <div id="timeline" class="timeline"></div>
+          <div id="timelineNote" class="muted">Watch the risk rise as readings arrive; the last reading runs through the full pipeline.</div>
+        </div>
       </div>
       <div class="panel result-panel">
         <div class="panel-head">
@@ -57,12 +71,44 @@
         </div>
         <div id="resultState" class="hidden">
           <div class="score-row">
-            <div><span class="muted">Risk score</span><div id="scoreValue" class="score">0%</div></div>
+            <div><span class="muted" id="scoreLabel">Failure probability</span><div id="scoreValue" class="score">0%</div></div>
             <div class="reason-code"><span class="muted">Reason code</span><strong id="reasonCode">—</strong></div>
           </div>
           <div class="explanation">
-            <div class="explanation-label">PLAIN-LANGUAGE EXPLANATION</div>
+            <div class="explanation-label" id="explLabel">GEMINI DIAGNOSIS (GROUNDED IN THE MAINTENANCE MANUAL)</div>
             <p id="explanationText">—</p>
+          </div>
+          <div id="mfgExtras" class="mfg-extras">
+            <div class="mfg-badges">
+              <span id="srcBadge" class="badge">—</span>
+              <span id="dataBadge" class="badge">—</span>
+              <span id="degradedBadge" class="badge warn hidden">DEGRADED · heuristic fallback</span>
+            </div>
+            <div class="mfg-stats">
+              <div><span>ML risk</span><strong id="mlRisk">—</strong></div>
+              <div><span>Sensor risk</span><strong id="sensorRisk">—</strong></div>
+              <div><span>Overall</span><strong id="overallRisk">—</strong></div>
+              <div><span>Est. remaining life</span><strong id="rulValue">—</strong></div>
+            </div>
+            <div class="mfg-block">
+              <div class="explanation-label">MANUAL SECTIONS USED (RAG)</div>
+              <ul id="manualList" class="manual-list"></ul>
+            </div>
+            <div class="mfg-block">
+              <div class="explanation-label">WORK ORDER</div>
+              <div id="woBox" class="muted">—</div>
+            </div>
+            <div class="mfg-block">
+              <div class="explanation-label">AGENT CHAIN</div>
+              <div class="agent-controls">
+                <select id="agentMode">
+                  <option value="plain">Plain Python</option>
+                  <option value="adk">Google ADK</option>
+                </select>
+                <button class="ghost" id="agentsBtn">Run 4-agent chain</button>
+              </div>
+              <ol id="agentTrace" class="agent-trace"></ol>
+            </div>
           </div>
           <div class="action-row">
             <button class="primary" id="runAgainBtn">Run again</button>
@@ -81,12 +127,12 @@
     <section class="panel history-panel">
       <div class="panel-head">
         <div><div class="section-kicker">STAGE 5 · STATE + DISPLAY</div><h2>Decision history</h2></div>
-        <span class="muted">Persisted in PostgreSQL</span>
+        <span class="muted">Saved to Firestore (in-memory when running locally)</span>
       </div>
       <div id="history" class="history-list"></div>
     </section>
   </main>
-  <footer>Prototype only. Scores are heuristic demo logic and are not suitable for real credit or fraud decisions.</footer>
+  <footer>Prototype only. Predictions are decision support for qualified maintenance staff, not proof of failure, and are not suitable for controlling equipment or for real credit or fraud decisions.</footer>
   <script src="/static/app.js"></script>
 </body>
 </html>

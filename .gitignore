@@ -12,3 +12,9 @@ bfsi/data/vehicle_loan.csv
 manufacturing/models/*.joblib
 manufacturing/models/*.json
 manufacturing/data/*.csv
+!manufacturing/data/machine_data.csv
+manufacturing/data/predictions.csv
+.venv/
+*.zip
+manufacturing/data/samples/MetroPT*.csv
+manufacturing/data/samples/*.zip

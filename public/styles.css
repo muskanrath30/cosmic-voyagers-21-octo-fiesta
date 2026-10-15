@@ -1085,3 +1085,262 @@ footer{
   }
 
 }
+
+/* =========================================================
+   MANUFACTURING MODE
+   ========================================================= */
+
+.case-icon.manufacturing{
+  color:#86efac;
+
+  border-color:#285240;
+
+  background:#0d1c17;
+}
+
+
+.decision.urgent_maintenance_review{
+  color:#fb7185;
+
+  border-color:#5c2632;
+
+  background:#211016;
+}
+
+
+.decision.schedule_maintenance{
+  color:#fcd34d;
+
+  border-color:#5b4a1d;
+
+  background:#211b0c;
+}
+
+
+.decision.continue_monitoring{
+  color:#86efac;
+
+  border-color:#28553e;
+
+  background:#0c1c17;
+}
+
+
+.mfg-extras{
+  margin:0 0 18px;
+}
+
+
+.mfg-badges{
+  display:flex;
+
+  flex-wrap:wrap;
+
+  gap:8px;
+
+  margin-bottom:14px;
+}
+
+
+.badge{
+  padding:5px 10px;
+
+  border-radius:999px;
+
+  border:1px solid #223047;
+
+  font-size:11px;
+
+  font-weight:800;
+
+  letter-spacing:.06em;
+
+  color:#96a3b6;
+}
+
+
+.badge.ok{
+  color:#86efac;
+
+  border-color:#28553e;
+
+  background:#0c1c17;
+}
+
+
+.badge.warn{
+  color:#fcd34d;
+
+  border-color:#5b4a1d;
+
+  background:#211b0c;
+}
+
+
+.mfg-stats{
+  display:grid;
+
+  grid-template-columns:repeat(4,1fr);
+
+  gap:8px;
+}
+
+
+.mfg-stats div{
+  border:1px solid #223047;
+
+  border-radius:11px;
+
+  padding:10px 12px;
+
+  background:#0d1523;
+}
+
+
+.mfg-stats span{
+  display:block;
+
+  color:#96a3b6;
+
+  font-size:11px;
+}
+
+
+.mfg-stats strong{
+  display:block;
+
+  margin-top:4px;
+
+  font-size:15px;
+}
+
+
+.risk-LOW{ color:#86efac; }
+.risk-MEDIUM{ color:#fcd34d; }
+.risk-HIGH{ color:#fb7185; }
+
+
+.mfg-block{
+  margin-top:16px;
+}
+
+
+.manual-list{
+  margin:8px 0 0;
+
+  padding-left:18px;
+
+  color:#cbd5e1;
+
+  font-size:13px;
+
+  line-height:1.6;
+}
+
+
+#woBox{
+  margin-top:8px;
+
+  line-height:1.5;
+}
+
+
+.agent-controls{
+  display:flex;
+
+  gap:8px;
+
+  margin-top:8px;
+
+  flex-wrap:wrap;
+}
+
+
+.agent-controls select{
+  background:#0b1220;
+
+  border:1px solid #223047;
+
+  border-radius:10px;
+
+  padding:9px 12px;
+
+  color:#edf2f7;
+}
+
+
+.agent-trace{
+  margin:12px 0 0;
+
+  padding-left:20px;
+
+  font-size:13px;
+
+  color:#cbd5e1;
+
+  line-height:1.6;
+}
+
+
+.agent-trace li b{
+  color:#7dd3fc;
+}
+
+
+.timeline-wrap{
+  margin-top:18px;
+
+  padding-top:16px;
+
+  border-top:1px solid #223047;
+}
+
+
+.timeline{
+  display:flex;
+
+  align-items:flex-end;
+
+  gap:4px;
+
+  height:96px;
+
+  margin-top:14px;
+}
+
+
+.timeline .bar{
+  flex:1;
+
+  min-width:6px;
+
+  border-radius:4px 4px 0 0;
+
+  background:#2b3b52;
+
+  transition:height .25s ease, background .25s ease;
+}
+
+
+.timeline .bar.LOW{ background:#3f9b6b; }
+.timeline .bar.MEDIUM{ background:#d4a72c; }
+.timeline .bar.HIGH{ background:#e0526a; }
+
+
+#timelineNote{
+  margin-top:10px;
+}
+
+
+@media(max-width:560px){
+  .mfg-stats{ grid-template-columns:1fr 1fr; }
+}
+
+/* mobile polish: reason code and history rows */
+.reason-code strong{ overflow-wrap:anywhere; word-break:normal; }
+@media(max-width:560px){
+  .score-row{ flex-direction:column; align-items:flex-start; }
+  .reason-code{ text-align:left; max-width:100%; }
+  .history-row{ grid-template-columns:1fr; gap:8px; }
+  .history-row>div:last-child{ text-align:left; white-space:normal; }
+}

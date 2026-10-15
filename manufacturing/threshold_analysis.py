@@ -1,122 +1,76 @@
+"""
+Threshold analysis for one asset.
+
+    python -m manufacturing.threshold_analysis --asset machine_tool
+
+Shows precision / recall / F1 at a range of thresholds on the VALIDATION split
+(the split used to choose the operating threshold). The TEST split is shown
+once at the chosen threshold, never used to pick it.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
 from pathlib import Path
 
+if __package__ in (None, ""):  # allow `python threshold_analysis.py`
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import joblib
-import pandas as pd
+from sklearn.metrics import f1_score, precision_score, recall_score
 
-from sklearn.metrics import (
-    precision_score,
-    recall_score,
-    f1_score,
-)
-from sklearn.model_selection import train_test_split
-
-from preprocessing import (
-    NUMERIC_FEATURES,
-    CATEGORICAL_FEATURES,
-    TARGET,
-    prepare_dataframe,
+from manufacturing import datasets
+from manufacturing.train import (
+    THRESHOLD_GRID,
+    load_metrics,
+    model_path,
+    split_frame,
 )
 
 
-ROOT = Path(__file__).resolve().parent
+def main() -> int:
 
-DATA_FILE = ROOT / "data" / "ai4i2020.csv"
-MODEL_FILE = ROOT / "model" / "manufacturing_ai4i_model.joblib"
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--asset", default="machine_tool", choices=list(datasets.ASSETS))
+    args = ap.parse_args()
 
+    asset = args.asset
+    spec = datasets.get_spec(asset)
 
-def main():
+    if not model_path(asset).exists():
+        sys.exit(f"No trained model for {asset}. Run: python -m manufacturing.train --asset {asset}")
+
+    df = datasets.load_training_frame(asset).reset_index(drop=True)
+    _, va, te, split_kind = split_frame(asset, df)
+    model = joblib.load(model_path(asset))
+    y = df[spec["target"]].astype(int)
 
     print("=" * 80)
-    print("MANUFACTURING FAILURE THRESHOLD ANALYSIS")
+    print(f"THRESHOLD ANALYSIS: {asset} (split: {split_kind})")
     print("=" * 80)
 
-    # Load data
-    df = pd.read_csv(DATA_FILE)
+    val_probs = model.predict_proba(df.iloc[va][spec["features"]])[:, 1]
+    print(f"\n{'threshold':>9} {'precision':>10} {'recall':>8} {'f1':>8} {'alerts':>8}   (validation)")
+    for t in THRESHOLD_GRID:
+        flags = (val_probs >= t).astype(int)
+        print(f"{t:>9.2f} "
+              f"{precision_score(y.iloc[va], flags, zero_division=0):>10.3f} "
+              f"{recall_score(y.iloc[va], flags, zero_division=0):>8.3f} "
+              f"{f1_score(y.iloc[va], flags, zero_division=0):>8.3f} "
+              f"{int(flags.sum()):>8}")
 
-    df = prepare_dataframe(df)
-
-    X = df[NUMERIC_FEATURES + CATEGORICAL_FEATURES]
-    y = df[TARGET]
-
-    # Reproduce the same test split used during training
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
-        test_size=0.20,
-        random_state=42,
-        stratify=y,
-    )
-
-    # Load trained model
-    model = joblib.load(MODEL_FILE)
-
-    # Get probability of failure
-    probabilities = model.predict_proba(X_test)[:, 1]
-
-    print()
-    print(f"Test records: {len(X_test)}")
-    print(f"Actual failures: {int(y_test.sum())}")
-
-    print()
-    print(
-        f"{'Threshold':<12}"
-        f"{'Precision':<12}"
-        f"{'Recall':<12}"
-        f"{'F1':<12}"
-        f"{'Detected':<12}"
-    )
-
-    print("-" * 60)
-
-    thresholds = [
-        0.05,
-        0.10,
-        0.15,
-        0.20,
-        0.25,
-        0.30,
-        0.35,
-        0.40,
-        0.45,
-        0.50,
-    ]
-
-    for threshold in thresholds:
-
-        predictions = (
-            probabilities >= threshold
-        ).astype(int)
-
-        precision = precision_score(
-            y_test,
-            predictions,
-            zero_division=0,
-        )
-
-        recall = recall_score(
-            y_test,
-            predictions,
-            zero_division=0,
-        )
-
-        f1 = f1_score(
-            y_test,
-            predictions,
-            zero_division=0,
-        )
-
-        detected = int(
-            ((predictions == 1) & (y_test == 1)).sum()
-        )
-
-        print(
-            f"{threshold:<12.2f}"
-            f"{precision:<12.4f}"
-            f"{recall:<12.4f}"
-            f"{f1:<12.4f}"
-            f"{detected:<12}"
-        )
+    metrics = load_metrics(asset) or {}
+    chosen = metrics.get("operating_threshold")
+    if chosen is not None:
+        test_probs = model.predict_proba(df.iloc[te][spec["features"]])[:, 1]
+        flags = (test_probs >= chosen).astype(int)
+        print(f"\nChosen on validation: {chosen}")
+        print(f"Test at that threshold: "
+              f"precision={precision_score(y.iloc[te], flags, zero_division=0):.3f} "
+              f"recall={recall_score(y.iloc[te], flags, zero_division=0):.3f}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
