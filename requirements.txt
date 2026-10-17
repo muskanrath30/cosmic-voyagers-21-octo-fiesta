@@ -8,6 +8,7 @@ pandas
 scikit-learn
 xgboost
 joblib
+python-dotenv
 
 # Manufacturing track
 scipy

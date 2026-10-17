@@ -3,6 +3,7 @@ __pycache__/
 .env
 venv/
 .DS_Store
+env.yaml
 
 # Trained models and raw data -- large binary files, don't commit
 bfsi/models/*.joblib

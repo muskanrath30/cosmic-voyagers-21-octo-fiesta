@@ -29,6 +29,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from shared.pipeline import run_pipeline
 from shared.state_store import list_decisions
 

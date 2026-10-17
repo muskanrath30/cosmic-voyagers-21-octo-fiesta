@@ -13,3 +13,4 @@ manufacturing/models/*.joblib
 manufacturing/models/*.json
 manufacturing/data/predictions.csv
 manufacturing/tests/
+env.yaml
