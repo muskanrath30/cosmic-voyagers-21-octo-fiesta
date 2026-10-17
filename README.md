@@ -8,7 +8,7 @@ manual (with the manual sections shown), and creates a work order. A four-agent 
 (Google ADK) runs the same flow step by step, and the UI supports voice questions and a live
 sensor replay.
 
-- Live app: `<Cloud Run URL>`
+- Live app: `https://predictive-maintenance-copilot-282870898316.us-central1.run.app`
 - Demo video: `<video link>`
 - Deck: `<deck link>`
 
