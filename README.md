@@ -61,7 +61,7 @@ sensor replay.
 
 ```
                          ┌────────────────────────────────────────────┐
-  User ──▶ │  Dashboard (public/)  +  voice questions   │
+  User ──▶              |    Dashboard (public/)  +  voice questions  │
                          └───────────────────┬────────────────────────┘
                                              │ HTTPS
                                   ┌──────────▼───────────┐
