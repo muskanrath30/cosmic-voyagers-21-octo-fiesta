@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS `pm_platform.raw_sensor_readings`
   value           FLOAT64   NOT NULL,   -- numeric reading
   unit            STRING,               -- e.g. C, mm/s, bar
   recorded_at     TIMESTAMP NOT NULL,   -- device-side timestamp (UTC)
-  ingested_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+  ingested_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP() NOT NULL,
   metadata        JSON                  -- free-form tags / context
 )
 PARTITION BY DATE(recorded_at)
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS `pm_platform.predictions`
   confidence        FLOAT64,              -- 0..1
   horizon_hours     INT64,                -- forecast horizon
   features          JSON,                 -- snapshot of inputs (optional)
-  predicted_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP()
+  predicted_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP() NOT NULL
 )
 PARTITION BY DATE(predicted_at)
 CLUSTER BY device_id, model_name
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS `pm_platform.decisions`
   severity          STRING,               -- low | medium | high | critical
   rationale         STRING,               -- explanation (often Gemini-generated)
   actor             STRING,               -- user id or 'system'
-  decided_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+  decided_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP() NOT NULL,
   action_taken_at   TIMESTAMP,
   status            STRING,               -- open | actioned | closed
   metadata          JSON
@@ -86,9 +86,10 @@ CREATE TABLE IF NOT EXISTS `pm_platform.model_metrics`
   metric_value      FLOAT64   NOT NULL,
   evaluation_split  STRING,               -- train | validation | test
   dataset_version   STRING,
-  evaluated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
+  evaluated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP() NOT NULL,
   metadata          JSON
 )
 PARTITION BY DATE(evaluated_at)
 CLUSTER BY model_name
 OPTIONS (description = "Model evaluation metrics over time");
+
